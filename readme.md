@@ -1,7 +1,10 @@
 Simple implementation of Two-Factor-Authentication for
 Google Authenticator App or other similars
 
-2FA == TFA
+2FA = Two-Factor-Authentication
+
+TFA = Two-Factor-Authentication
+
 
 <h1> Steps: </h1>
 
