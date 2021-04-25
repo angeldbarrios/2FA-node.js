@@ -1,6 +1,7 @@
 'use strict';
 
 const Joi = require('joi');
+const QRCode = require('qrcode');
 const authService = require('../services/authService');
 const accessTokenService = require('../services/accessTokenService');
 
@@ -23,25 +24,21 @@ module.exports = class AuthUseCases {
     );
     // Try to log in
     const user = await authService.loginUser(username, password);
-    if (user.with2FA === true) {
-      if (!tfaToken) {
-        throw new Error('Field tfaToken is missing');
-      }
-      // Veryfy 2FA token
-      const tokenMatches = authService.verifyTfaToken(user.tfaSecret, tfaToken);
-      if (!tokenMatches) {
-        throw new Error('Invalid code');
-      }
+    const responseInfo = {
+      id: user._id.toString(),
+      username: user.username,
+      needs2FA: false,
+    };
+
+    if(user.with2FA === true) {
+      responseInfo.needs2FA = true;
     }
+
     // generate JWT access token
-    const accessToken = await accessTokenService.generate({
-      id: user.id,
-      username: user.username
-    });
+    const accessToken = await accessTokenService.generate(responseInfo);
 
     return {
-      id: user._id,
-      username: user.username,
+      ...responseInfo,
       accessToken: accessToken
     }
   }
@@ -70,7 +67,7 @@ module.exports = class AuthUseCases {
    * @param {boolean} getQrOption Determines if function returns buffer containing QR image to be scan for Google Authenticator.
    *  Not implemented
    */
-  async tfaSetup(authorationToken, getQrOption) {
+  async tfaSetup(authorationToken, getQrAsImage) {
     // Validate input
     this.validateSchema(
       this.generateSchemaObject(['authorationToken']),
@@ -80,11 +77,19 @@ module.exports = class AuthUseCases {
     const decoded = await accessTokenService.decode(authorationToken);
     const secretData = await authService.generateSecret();
     await authService.storeTfaSecret(decoded.id, secretData.secret);
-    return secretData;
+
+    if(getQrAsImage) {
+      const urlAsQrBuffer = await QRCode.toBuffer(secretData.url);
+      return urlAsQrBuffer;
+    } else {
+      secretData.urlAsQr = await QRCode.toDataURL(secretData.url);
+      return secretData;
+    }
+
   }
 
   /**
-   * First 2FA token validation. After this validation 2FA is enabled
+   * First 2FA token validation. After this validation,s 2FA is enabled
    * @param {string} authorationToken JWT token
    * @param {string | number } tfaToken One Use Password for 2FA
    */
@@ -95,7 +100,7 @@ module.exports = class AuthUseCases {
     );
 
     const decoded = await accessTokenService.decode(authorationToken);
-    const user = authService.getUserById(decoded.id);
+    const user = await authService.getUserById(decoded.id);
     if (user.with2FA === true) {
       throw new Error('User already has token 2fa enabled');
     }
@@ -122,7 +127,11 @@ module.exports = class AuthUseCases {
     );
 
     const decoded = await accessTokenService.decode(authorationToken);
-    const user = authService.getUserById(decoded.id);
+    if(decoded.needs2FA !== true) {
+      throw new Error('No 2FA is setup');
+    }
+
+    const user = await authService.getUserById(decoded.id);
     if (user.with2FA === false) {
       throw new Error('User has not enable 2FA yet');
     }
@@ -135,7 +144,18 @@ module.exports = class AuthUseCases {
       throw new Error('Not valid token');
     }
     
-    return true;
+
+    const loginData = {
+      id: decoded.id,
+      username: decoded.username,
+      needs2FA: false,
+    };
+    const accessToken = await accessTokenService.generate(loginData);
+
+    return {
+      ...loginData,
+      accessToken: accessToken
+    }
   }
 
   /**

@@ -2,6 +2,7 @@
 
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
+const speakeasy = require('speakeasy');
 const saltRounds = 10;
 
 module.exports = {
@@ -49,13 +50,11 @@ module.exports = {
       secret: secret.base32,
       label: 'Test123',
       encoding: 'base32',
-    });
-
-    const qrUrl = await QRCode.toDataURL(url);
+    });   
 
     return {
       secret: secret.base32,
-      qrData: qrUrl
+      url
     }
   },
 
@@ -89,7 +88,7 @@ module.exports = {
   },
 
   async getUserById(userId) {
-    const user = await User.findOne({ id: userId }, 'username with2FA tfaSecret').lean();
+    const user = await User.findOne({ _id: userId }, 'username with2FA tfaSecret').lean();
     if (!user) {
       throw new Error('User does not exist');
     }

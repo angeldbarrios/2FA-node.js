@@ -42,12 +42,9 @@ module.exports = () => {
       const token = req.headers['authorization'];
       const getqr = req.query.getqr === '1' || req.query.getqr === 'true' ? true : false;
       const data = await authUseCases.tfaSetup(token, getqr);
-      if(data instanceof stream.Readable) {
-        stream.pipeline(data, res, function(err) {
-          if(err) {
-            next(err);
-          }
-        });
+      if(data instanceof Buffer) {
+        res.header('Content-Type', 'image/png');
+        res.send(data);
       } else {
         res.json({
           error: false,
@@ -55,6 +52,35 @@ module.exports = () => {
         });
       }
 
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/2fa/confirmation', async (req, res, next) => {
+    try {
+      const token = req.headers['authorization'];
+      const tfaToken = req.body.tfaToken;
+      await authUseCases.tfaConfirmation(token, tfaToken);
+      res.json({
+        error: false,
+        message: '2FA successfully confirmated'
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/2fa/verification', async (req, res, next) => {
+    try {
+      const token = req.headers['authorization'];
+      const tfaToken = req.body.tfaToken;
+      const loginData = await authUseCases.tfaValidation(token, tfaToken);
+
+      res.json({
+        error: false,
+        data: loginData
+      });
     } catch (error) {
       next(error);
     }

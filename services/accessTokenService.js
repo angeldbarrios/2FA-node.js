@@ -12,6 +12,7 @@ module.exports = {
         JWT_SECRET_KEY,
         {
           issuer: '2fa-google-authenticator',
+          audience: '2fa-google-authenticator',
           expiresIn: '1h'
         },
         function (err, token) {
@@ -26,7 +27,10 @@ module.exports = {
       jwt.verify(
         accessToken,
         JWT_SECRET_KEY,
-        { issuer: '2fa-google-authenticator' },
+        { 
+          issuer: '2fa-google-authenticator', 
+          audience: '2fa-google-authenticator'
+        },
         function (err, decoded) {
           if (err) return reject(err);
           resolve(decoded);
